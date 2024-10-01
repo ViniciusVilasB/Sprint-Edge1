@@ -1,0 +1,105 @@
+#include <WiFi.h>
+#include <DallasTemperature.h>
+#include <OneWire.h>
+#include <ArduinoJson.h>
+#include <PubSubClient.h>
+
+// Configurações de WiFi
+const char *SSID = "Wokwi-GUEST";
+const char *PASSWORD = "";
+
+// Configurações de MQTT
+const char *BROKER_MQTT = "broker.hivemq.com";
+const int BROKER_PORT = 1883;
+const char *ID_MQTT = "YAN_mqtt";
+const char *TOPIC_PUBLISH_DATA = "fiap/iot/data";
+
+// Variáveis do sensor de temperatura
+int sensorPin = 12;
+OneWire oneWire(sensorPin);
+DallasTemperature sensor(&oneWire);
+
+// Variáveis do potenciômetro
+int potenciometroPin = 34;
+int valorDoPotenciometro = 0;
+
+// Conexão WiFi e MQTT
+WiFiClient espClient;
+PubSubClient MQTT(espClient);
+
+void initWiFi() {
+  Serial.print("Conectando com a rede: ");
+  Serial.println(SSID);
+  WiFi.begin(SSID, PASSWORD);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(100);
+    Serial.print(".");
+  }
+
+  Serial.println();
+  Serial.print("Conectado com sucesso: ");
+  Serial.println(SSID);
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+void initMQTT() {
+  MQTT.setServer(BROKER_MQTT, BROKER_PORT);
+}
+
+void reconnectMQTT() {
+  while (!MQTT.connected()) {
+    Serial.print("Tentando conectar com o Broker MQTT: ");
+    Serial.println(BROKER_MQTT);
+
+    if (MQTT.connect(ID_MQTT)) {
+      Serial.println("Conectado ao broker MQTT!");
+    } else {
+      Serial.print("Falha na conexão com MQTT. Código de erro: ");
+      Serial.println(MQTT.state());
+      delay(2000);
+    }
+  }
+}
+
+float calcularTemperatura() {
+  sensor.requestTemperatures();
+  return sensor.getTempCByIndex(0);
+}
+
+float volante() {
+  valorDoPotenciometro = analogRead(potenciometroPin);
+  return map(valorDoPotenciometro, 0, 4095, 0, 180); // Para ESP32
+}
+
+
+void setup() {
+  Serial.begin(115200);
+  initWiFi();
+  initMQTT();
+  sensor.begin();
+}
+
+void loop() {
+  if (!MQTT.connected()) {
+    reconnectMQTT();
+  }
+  MQTT.loop();
+
+  // Coleta dados
+  float temperatura = calcularTemperatura();
+  float anguloVolante = volante();
+
+  // Cria e envia JSON
+  StaticJsonDocument<100> json;
+  json["Temperatura"] = temperatura;
+  json["Angulo do Volante"] = anguloVolante;
+
+  char buffer[100];
+  serializeJson(json, buffer);
+  MQTT.publish(TOPIC_PUBLISH_DATA, buffer);
+  
+  Serial.println(buffer);
+  delay(2000); // Envia dados a cada 2 segundos
+}
