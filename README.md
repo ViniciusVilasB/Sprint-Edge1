@@ -23,3 +23,7 @@ Login na plataforma Wokwi, abrir o link e copiar o projeto. Com o projeto aberto
 ## Dependências
 
 Não há depêndencias externas para o funcionamento do projeto.
+
+## Video
+
+[Sprint 3 Edge](https://youtu.be/3V2ACFUekt8)
